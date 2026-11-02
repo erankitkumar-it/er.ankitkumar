@@ -1,0 +1,29 @@
+venv/
+__pycache__/
+*.py[cod]
+scan_history.db
+scan_history.db-shm
+scan_history.db-wal
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Private configuration
+.env
+.env.*
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# Logs
+*.log
+
+# System files
+.DS_Store
+Thumbs.db

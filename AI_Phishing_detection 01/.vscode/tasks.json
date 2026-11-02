@@ -1,0 +1,17 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Evaluate PhishTower model",
+			"type": "shell",
+			"command": "${workspaceFolder}\\venv\\Scripts\\python.exe",
+			"args": [
+				"-u",
+				"test_predictions.py"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	]
+}

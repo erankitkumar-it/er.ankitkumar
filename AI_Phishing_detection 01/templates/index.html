@@ -1,0 +1,191 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#07111f">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>PhishTower | Threat Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script defer src="https://unpkg.com/lucide@latest"></script>
+    <script defer src="{{ url_for('static', filename='app.js') }}"></script>
+</head>
+<body>
+    <div class="app-shell">
+        <header class="topbar">
+            <a class="brand" href="#overview" aria-label="PhishTower Threat Console home">
+                <span class="brand-mark"><i data-lucide="shield-check"></i></span>
+                <span class="brand-copy"><strong>PHISHTOWER</strong><small>THREAT CONSOLE</small></span>
+            </a>
+            <nav class="main-nav" aria-label="Main navigation">
+                <a class="nav-link active" href="#overview">Overview</a>
+                <a class="nav-link" href="#scanner">Scanner</a>
+                <a class="nav-link" href="#history">Scan history</a>
+            </nav>
+            <div class="topbar-meta">
+                <span class="model-status {{ 'is-ready' if model_available else 'is-offline' }}">
+                    <span class="status-dot"></span>{{ 'MODEL READY' if model_available else 'MODEL OFFLINE' }}
+                </span>
+                <span class="topbar-divider"></span>
+                <span class="environment-label">LOCAL ANALYSIS</span>
+            </div>
+        </header>
+
+        <main id="overview" class="dashboard">
+            <section class="page-heading">
+                <div>
+                    <p class="eyebrow"><span class="eyebrow-line"></span> SECURITY OPERATIONS / URL ANALYSIS</p>
+                    <h1>Threat <span>monitor</span></h1>
+                    <p class="page-description">A clear view of URL scans and model detections.</p>
+                </div>
+                <div class="heading-date"><i data-lucide="calendar-days"></i><span id="current-date"></span></div>
+            </section>
+
+            <section class="metrics-grid" aria-label="Scan statistics">
+                <article class="metric-card metric-total">
+                    <div class="metric-top"><span>Total URLs scanned</span><span class="metric-icon"><i data-lucide="scan-line"></i></span></div>
+                    <strong id="metric-total" class="metric-value">{{ stats.total_scans }}</strong>
+                    <span class="metric-foot">Recorded scans</span>
+                </article>
+                <article class="metric-card metric-safe">
+                    <div class="metric-top"><span>Safe URLs</span><span class="metric-icon"><i data-lucide="badge-check"></i></span></div>
+                    <strong id="metric-safe" class="metric-value">{{ stats.safe_detected }}</strong>
+                    <span class="metric-foot">Lower estimated risk</span>
+                </article>
+                <article class="metric-card metric-suspicious">
+                    <div class="metric-top"><span>Suspicious URLs</span><span class="metric-icon"><i data-lucide="triangle-alert"></i></span></div>
+                    <strong id="metric-suspicious" class="metric-value">{{ stats.suspicious_detected }}</strong>
+                    <span class="metric-foot">Review indicators</span>
+                </article>
+                <article class="metric-card metric-phishing">
+                    <div class="metric-top"><span>Phishing detected</span><span class="metric-icon"><i data-lucide="shield-alert"></i></span></div>
+                    <strong id="metric-phishing" class="metric-value">{{ stats.phishing_detected }}</strong>
+                    <span class="metric-foot">High estimated risk</span>
+                </article>
+                <article class="metric-card metric-rate">
+                    <div class="metric-top"><span>Threat rate</span><span class="metric-icon"><i data-lucide="chart-no-axes-column-increasing"></i></span></div>
+                    <strong id="metric-rate" class="metric-value">{{ stats.threat_rate }}<small>%</small></strong>
+                    <span class="metric-foot">Suspicious or phishing</span>
+                </article>
+            </section>
+
+            <section class="workspace-grid">
+                <article id="scanner" class="panel scanner-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="panel-kicker">LIVE INSPECTION</p>
+                            <h2>Scan a URL</h2>
+                        </div>
+                        <span class="panel-icon"><i data-lucide="radar"></i></span>
+                    </div>
+                    <p class="panel-copy">Model-based screening with transparent URL-structure indicators.</p>
+                    <form id="scan-form" class="scan-form" action="/" method="post" novalidate>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <label for="url-input">Website URL</label>
+                        <div class="input-wrap">
+                            <i data-lucide="link-2"></i>
+                            <input id="url-input" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" maxlength="2048" placeholder="https://example.com" value="{{ url }}" aria-describedby="scan-hint" required>
+                        </div>
+                        <div class="form-bottom">
+                            <p id="scan-hint"><i data-lucide="lock-keyhole"></i> URLs are analyzed, never opened.</p>
+                            <button id="scan-button" class="primary-button" type="submit">
+                                <span class="button-label"><i data-lucide="scan-search"></i> Analyze URL</span>
+                                <span class="button-loading" hidden><span class="spinner"></span> Analyzing</span>
+                            </button>
+                        </div>
+                    </form>
+                    <div id="scan-result" class="result-panel" role="status" aria-live="polite" {% if not result %}hidden{% endif %}>
+                        {% if result %}
+                            {% if result.error %}
+                                <span class="result-symbol result-warning"><i data-lucide="circle-alert"></i></span>
+                                <div><p class="result-label">SCAN NOT COMPLETED</p><h3>{{ result.error }}</h3></div>
+                            {% else %}
+                                <span class="result-symbol result-{{ result.prediction }}"><i data-lucide="{{ 'shield-alert' if result.prediction == 'phishing' else ('triangle-alert' if result.prediction == 'suspicious' else 'badge-check') }}"></i></span>
+                                <div class="result-copy">
+                                    <p class="result-label">{{ result.prediction|upper }} CLASSIFICATION</p>
+                                    <h3>{{ result.url }}</h3>
+                                    <p class="result-note">{{ 'Model uncertainty: review the indicators before relying on this result.' if result.uncertain else 'Model-based assessment only; this does not verify that a site is safe.' }}</p>
+                                </div>
+                                <div class="result-scores"><span class="risk-score">{{ '%.1f'|format(result.risk_score) }}%<small>risk score</small></span><span class="result-confidence">{{ '%.1f'|format(result.confidence * 100) }}%<small>model confidence</small></span><button class="copy-result" type="button" data-copy-result aria-label="Copy scan result" title="Copy scan result"><i data-lucide="copy"></i></button></div>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    {% if result and not result.error %}
+                        <ul class="result-reasons">{% for reason in result.reasons %}<li>{{ reason }}</li>{% endfor %}</ul>
+                        <details class="feature-details"><summary>URL feature analysis</summary><div class="feature-list"><span>Subdomains: {{ result.features.subdomain_count }}</span><span>IP host: {{ 'Yes' if result.features.uses_ip_address else 'No' }}</span><span>Shortener: {{ 'Yes' if result.features.uses_url_shortener else 'No' }}</span><span>Query present: {{ 'Yes' if result.features.has_query_parameters else 'No' }}</span></div></details>
+                    {% endif %}
+                    <p id="form-message" class="form-message" role="alert" hidden></p>
+                </article>
+
+                <article class="panel chart-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="panel-kicker">DETECTION BREAKDOWN</p>
+                            <h2>Scan distribution</h2>
+                        </div>
+                        <span class="panel-icon panel-icon-blue"><i data-lucide="chart-pie"></i></span>
+                    </div>
+                    <div class="chart-wrap">
+                        <canvas id="detection-chart" aria-label="Chart showing safe, suspicious and phishing classifications" role="img"></canvas>
+                        <div class="chart-center"><strong id="chart-total">{{ stats.total_scans }}</strong><span>total scans</span></div>
+                    </div>
+                    <div class="chart-legend">
+                        <span><i class="legend-dot dot-safe"></i>Safe <strong id="legend-safe">{{ stats.safe_detected }}</strong></span>
+                        <span><i class="legend-dot dot-suspicious"></i>Suspicious <strong id="legend-suspicious">{{ stats.suspicious_detected }}</strong></span>
+                        <span><i class="legend-dot dot-phishing"></i>Phishing <strong id="legend-phishing">{{ stats.phishing_detected }}</strong></span>
+                    </div>
+                </article>
+            </section>
+
+            <section id="history" class="panel history-panel">
+                <div class="history-heading">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="panel-kicker">ACTIVITY LOG</p>
+                            <h2>Recent scans</h2>
+                        </div>
+                    </div>
+                    <div class="history-actions">
+                        <a class="secondary-button" href="{{ url_for('download_report') }}"><i data-lucide="download"></i><span>Export CSV</span></a>
+                        <button id="clear-history" class="quiet-button" type="button" title="Clear scan history"><i data-lucide="trash-2"></i><span>Clear history</span></button>
+                    </div>
+                </div>
+                <div class="history-filters">
+                    <label class="history-search"><i data-lucide="search"></i><input id="history-search" type="search" placeholder="Search scanned URLs" autocomplete="off" aria-label="Search scan history"></label>
+                    <label class="classification-filter"><span>Classification</span><select id="history-filter" aria-label="Filter history by classification"><option value="all">All scans</option><option value="safe">Safe</option><option value="suspicious">Suspicious</option><option value="phishing">Phishing</option></select></label>
+                </div>
+                <div class="table-scroll">
+                    <table>
+                        <thead><tr><th scope="col">URL</th><th scope="col">Classification</th><th scope="col">Risk score</th><th scope="col">Scanned at</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+                        <tbody id="history-body">
+                            {% for scan in recent_scans %}
+                                <tr>
+                                    <td class="url-cell">{{ scan.url }}</td>
+                                    <td><span class="verdict verdict-{{ scan.prediction }}"><span></span>{{ scan.prediction|capitalize }}</span></td>
+                                    <td class="score-cell">{{ '%.1f%%'|format(scan.risk_score) }}</td>
+                                    <td class="time-cell">{{ scan.scanned_at }}</td>
+                                    <td><button class="row-delete" type="button" data-delete-scan="{{ scan.id }}" aria-label="Delete scan record" title="Delete scan record"><i data-lucide="x"></i></button></td>
+                                </tr>
+                            {% else %}
+                                <tr class="empty-row"><td colspan="5">No scans recorded yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-footer"><span id="history-count">{{ recent_scans|length }} recent records</span><span id="history-total">Latest 50 scans shown</span></div>
+            </section>
+
+            <footer class="page-footer">
+                <span><span class="footer-mark"><i data-lucide="shield"></i></span> AI-Based Phishing URL Detection System</span>
+                <span>Predictions are indicators, not a safety guarantee.</span>
+            </footer>
+        </main>
+    </div>
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "negative_training_count": 314339,
+  "positive_training_count": 125137,
+  "class_weighting": "balanced",
+  "probability_correction": "restore empirical class prior"
+}
